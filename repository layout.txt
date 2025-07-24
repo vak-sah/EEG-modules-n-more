@@ -1,0 +1,30 @@
+your-repo/
+├── modules/                                # Reusable code (models, training, utils, etc.)
+│   ├── model/
+│   ├── train/
+│   ├── data/
+│   └── configs/
+│       └── default.yaml                    # Global default config for all experiments
+│
+├── experiments/                            # Each experiment lives in its own folder
+│   ├── my_new_idea/
+│   │   ├── config.yaml                     # Required base config (must include `name: my_new_idea`)
+│   │   ├── main.py                         # Optional custom main script for this experiment
+│   │   ├── configs/                        # Optional overrides for hyperparams, sweeps, etc.
+│   │   │   └── lr_1e-4.yaml
+│   │   └── runs/                           # Auto-generated run folders (timestamped)
+│   │       └── run_2025-07-24_09-00-00/    # (your logs, saved models, plots, etc.)
+│   │           ├── config.yaml             # Final merged config snapshot
+│   │           ├── logs/
+│   │           ├── checkpoints/
+│   │           └── plots/
+│   │           └── ...
+│   └── ...
+│
+├── scripts/
+│   └── run_experiment.py                   # Hydra-based launcher for all experiments
+│
+├── conf/
+│   └── config.yaml                         # Hydra entrypoint (includes default config)
+│
+└── .gitignore                              # Ignores experiment run logs (see below)
