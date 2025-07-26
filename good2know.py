@@ -1,38 +1,9 @@
-
-
-# Never hardcode values in main scripts (except paths to configs!)
-
 _______________________________________________________
 
+# gitignore
 
-from utils.config_loader import load_config, update_config
-
-base_config = load_config("config/default.yaml")
-exp_config = load_config("experiments/experiment_dfr/config.yaml")
-cfg = update_config(base_config, exp_config)
-
-# Access like cfg["training"]["epochs"]
-
-
-_______________________________________________________
-
-import hydra
-from omegaconf import DictConfig, OmegaConf
-from modules.train.trainer import Trainer
-
-@hydra.main(version_base=None, config_path="conf", config_name="config")
-def my_app(cfg : DictConfig) -> None:
-    print(OmegaConf.to_yaml(cfg))
-    trainer = Trainer(cfg)
-    trainer.train()
-
-if __name__ == "__main__":
-    main()
-
-_______________________________________________________
-
-
-# rewrite with proper naming convetion and documentation 
+wandb/
+runs/
 
 _______________________________________________________
 
@@ -91,81 +62,6 @@ class Trainer:
         print(f"Training {self.cfg.model.type} for {self.cfg.training.epochs} epochs")
         # loop through data, etc...
 
-
-_______________________________________________________
-
-
-your-repo/
-├── modules/                    # All reusable code
-│   ├── model/
-│   ├── train/
-│   ├── data/
-│   └── configs/
-│       └── default.yaml        # Default config
-│
-├── experiments/                # All experiments here
-│   ├── baseline/
-│       ├── config.yaml
-│       └── main.py
-│   ├── group_dro/
-│   │   ├── config.yaml         # Custom config for this experiment
-│   │   ├── main.py             # Custom pipeline
-│   │   └── runs/               # Automatically created folders per run
-│   │       ├── run_2025-07-23_09-15-12/
-│   │       │   ├── config.yaml
-│   │       │   ├── logs/
-│   │       │   ├── checkpoints/
-│   │       │   └── plots/
-│   │       └── ...
-│   └── mixup/
-│       ├── config.yaml
-│       ├── main.py
-│       └── runs/
-│           └── run_2025-07-23_10-03-01/
-│
-├── scripts/
-│   └── run_experiment.py       # Master launcher
-│
-├── conf/
-│   └── config.yaml             # Hydra entrypoint
-
-_______________________________________________________
-
-
-scripts/run_experiment.py — Master runner
-import hydra
-from omegaconf import OmegaConf
-from pathlib import Path
-from datetime import datetime
-import runpy
-import shutil
-
-@hydra.main(config_path="../conf", config_name="config", version_base="1.3")
-def main(cfg):
-    exp_name = cfg.experiment.name if "name" in cfg.experiment else "unnamed"
-    run_time = datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
-    
-    # Create output dir under the experiment folder
-    run_dir = Path(f"../experiments/{exp_name}/runs/{run_time}")
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save merged config
-    with open(run_dir / "config.yaml", "w") as f:
-        f.write(OmegaConf.to_yaml(cfg))
-
-    # Save checkpoint/log dir path to config
-    cfg.output_dir = str(run_dir)
-
-    # If custom main exists, run it
-    exp_main = Path(f"../experiments/{exp_name}/main.py")
-    if exp_main.exists():
-        runpy.run_path(str(exp_main), init_globals={"cfg": cfg})
-    else:
-        print("No custom main.py for this experiment")
-
-if __name__ == "__main__":
-    main()
-
 _______________________________________________________
 
 Example experiments/new_idea/main.py
@@ -208,6 +104,92 @@ experiments/**/runs/
 # ignore all runs/ folders inside any subdirectory of experiments/.
 
 _______________________________________________________
+
+
+eeg-modules-n-more/
+│
+├── README.md
+├── Dockerfile
+├── .gitignore
+├── requirements.txt               # core runtime deps
+├── requirements-dev.txt           # lint / test / docs
+├── .pre-commit-config.yaml        # auto‑format / lint / type‑check
+│
+├── datasets/                      # data‑source recipes
+│   ├── local_paths.yaml           # absolute paths on your box / Colab
+│   ├── download_tdb.yaml          # URL + SHA256 spec (optional)
+│   └── fetch_tdb.py               # downloads + verifies → data_root/
+│
+├── experiments/                   # **Hydra configs** (nothing else)
+│   ├── baseline.yaml              # defaults → ERM on laptop
+│   ├── dataset/
+│   │   ├── local_paths.yaml
+│   │   └── download_tdb.yaml
+│   ├── model/
+│   │   ├── eeg_small.yaml         # embed_dim 64, 5 layers
+│   │   └── eeg_big.yaml           # embed_dim 128, 8 layers
+│   ├── algo/
+│   │   ├── erm.yaml               # _target_: algorithms.erm.ERM
+│   │   ├── group_dro.yaml         # step_size etc.
+│   │   └── dfr.yaml               # teacher_temp, alpha, student_epochs
+│   └── runtime/
+│       ├── laptop.yaml            # CPU/GPU auto, batch_size 64
+│       ├── colab.yaml             # auto‑install on start
+│       └── server.yaml            # multi‑GPU flags placeholder
+│
+├── scripts/
+│   ├── train.py                   # single entry‑point (Hydra main)
+│   └── eval.py                    # test‑set evaluation / pooling
+│
+├── src/                           # importable Python package
+│   ├── __init__.py                # exposes maybe_skip etc.
+│   │
+│   ├── data/
+│   │   ├── base_datamodule.py     # abstract class with split helpers
+│   │   └── tdb_datamodule.py      # • TDBrainDataModule
+│   │   │                            - setup(), train/val/test_dataloader()
+│   │   │                            - SubjectsDataset inner class
+│   │
+│   ├── models/
+│   │   └── eeg_embed_net.py       # • PositionalEncoding
+│   │                               • AddClsToken
+│   │                               • CustomTransformerEncoderBlock
+│   │                               • EEGEmbedNetModel (nn.Module)
+│   │
+│   ├── algorithms/                # plug‑and‑play losses
+│   │   ├── base_algorithm.py      # • BaseAlgo (ABC)
+│   │   ├── erm.py                 # • ERM  (CrossEntropyLoss)
+│   │   ├── group_dro.py           # • GroupDRO (adv_probs update, worst‑group)
+│   │   └── dfr.py                 # • DFR
+│   │                                 attach_teacher(), KD + CE loss
+│   │
+│   ├── training/
+│   │   ├── loop.py                # train_one_run() (epochs, early stop)
+│   │   ├── callbacks.py           # EarlyStopper, EMAMetric (future hooks)
+│   │   └── resume.py              # maybe_skip()  + epoch‑level stubs
+│   │
+│   ├── evaluation/
+│   │   └── pooling.py             # pool_predictions( logits, pooling )
+│   │
+│   └── utils/
+│       ├── repro.py               # seed_everything()
+│       ├── logging.py             # build_logger() → W&B offline/online
+│       ├── metrics.py             # accuracy, per‑group helpers
+│       ├── paths.py               # get_data_root(), resolve save dirs
+│       ├── auto_install.py        # ensure_packages([...]) for Colab
+│       └── sweep.py               # hydra_to_wandb( search_space → YAML )
+│
+├── docs/
+│   ├── source/
+│   │   ├── conf.py                # Sphinx config (napoleon, autodoc)
+│   │   ├── index.rst              # high‑level guide
+│   │   └── api.rst                # **autogenerated API reference**
+│   └── _build/                    # HTML published to GitHub Pages
+│
+└── .github/
+    └── workflows/
+        ├── ci.yml                 # lint + 1‑batch smoke tests + coverage
+        └── docs.yml               # auto‑build & deploy Sphinx site
 
 
 _______________________________________________________
